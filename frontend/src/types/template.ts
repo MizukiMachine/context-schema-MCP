@@ -74,3 +74,23 @@ export interface TemplatePreview {
   /** Is featured */
   isFeatured: boolean;
 }
+
+export interface TemplateRecommendation {
+  /** Recommended template */
+  template: Template;
+  /** Confidence score (0-100) */
+  confidence: number;
+  /** Reason for recommendation */
+  reason: string;
+  /** Matched keywords */
+  matchedKeywords: string[];
+}
+
+export interface RecommendationContext {
+  /** User's current input/content */
+  content: string;
+  /** Optional context tags */
+  contextTags?: string[];
+  /** Preferred categories */
+  preferredCategories?: TemplateCategory[];
+}

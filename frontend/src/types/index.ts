@@ -71,4 +71,6 @@ export type {
   TemplateCategory,
   TemplatePreview,
   TemplateFilter,
+  TemplateRecommendation,
+  RecommendationContext,
 } from './template';

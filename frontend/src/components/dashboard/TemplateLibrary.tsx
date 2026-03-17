@@ -10,7 +10,8 @@ import {
   TEMPLATE_CATEGORIES,
 } from '../../constants/templates';
 import { createDemoFadeUp } from '../../constants/demoFlow';
-import type { Template, TemplateCategory } from '../../types';
+import { getTemplateRecommendations } from '../../services/templateRecommendations';
+import type { Template, TemplateCategory, TemplateRecommendation } from '../../types';
 
 interface TemplateLibraryProps {
   onSelectTemplate?: (template: Template, variables?: Record<string, string>) => void;
@@ -107,6 +108,12 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
     })),
   ], []);
 
+  // AI Recommendations based on search query
+  const recommendations = useMemo<TemplateRecommendation[]>(() => {
+    if (!searchQuery.trim() || searchQuery.length < 3) return [];
+    return getTemplateRecommendations({ content: searchQuery });
+  }, [searchQuery]);
+
   // Get variables for current preview template
   const previewVariables = useMemo(() => {
     if (!showPreview) return [];
@@ -175,6 +182,56 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
           </button>
         ))}
       </div>
+
+      {/* AI Recommendations */}
+      {recommendations.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              AI Recommendations
+            </h3>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {recommendations.map((rec, index) => (
+              <motion.button
+                key={rec.template.id}
+                onClick={() => setShowPreview(rec.template)}
+                className="group relative p-4 rounded-xl border border-purple-200 bg-gradient-to-br from-purple-50 to-white text-left hover:shadow-md transition-shadow"
+                {...createDemoFadeUp(index * 0.05)}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-slate-900 group-hover:text-purple-600 transition-colors truncate">
+                      {rec.template.name}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500 line-clamp-2">
+                      {rec.reason}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700">
+                    {rec.confidence}%
+                  </span>
+                </div>
+                {rec.matchedKeywords.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {rec.matchedKeywords.slice(0, 3).map((keyword: string) => (
+                      <span
+                        key={keyword}
+                        className="rounded-full bg-purple-50 px-2 py-0.5 text-xs text-purple-600"
+                      >
+                        {keyword}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Featured Templates */}
       {selectedCategory === 'all' && !searchQuery && featuredTemplates.length > 0 && (
