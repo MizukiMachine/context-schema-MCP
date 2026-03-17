@@ -1,2 +1,1 @@
-// Components
-export {};
+export { Header, Sidebar } from './layout';
