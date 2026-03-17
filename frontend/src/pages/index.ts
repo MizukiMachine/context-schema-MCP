@@ -1,2 +1,1 @@
-// Pages
-export {};
+export { Dashboard } from './Dashboard';
