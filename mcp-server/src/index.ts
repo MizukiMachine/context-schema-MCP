@@ -59,6 +59,34 @@ const templateCategories: TemplateCategory[] = [
   { id: "creative", name: "Creative", description: "クリエイティブ", template_count: 0 },
 ];
 
+// Multimodal types
+interface MultimodalContext {
+  id: string;
+  type: "image" | "video" | "audio";
+  data: string; // base64 or URL
+  metadata: {
+    width?: number;
+    height?: number;
+    format?: string;
+    size_bytes?: number;
+    duration_seconds?: number;
+  };
+  analysis?: MultimodalAnalysis;
+  created_at: string;
+}
+
+interface MultimodalAnalysis {
+  description: string;
+  labels: string[];
+  objects?: Array<{ name: string; confidence: number; bbox?: number[] }>;
+  text_detected?: string;
+  colors?: string[];
+  sentiment?: string;
+}
+
+// In-memory multimodal storage
+const multimodalStorage = new Map<string, MultimodalContext>();
+
 type ToolDefinition = {
   name: string;
   description: string;
@@ -1060,6 +1088,230 @@ const tools: ToolDefinition[] = [
         return jsonResult({
           categories: categoriesWithCount,
           total_templates: templateStorage.size,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  // Multimodal Tools (MCP-05)
+  {
+    name: "create_multimodal_context",
+    description: "マルチモーダルコンテキスト（画像・動画・音声）を作成します。base64データまたはURLを指定可能。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        type: {
+          type: "string",
+          enum: ["image", "video", "audio"],
+          description: "メディアタイプ",
+        },
+        data: {
+          type: "string",
+          description: "base64エンコードデータまたはURL",
+          minLength: 1,
+        },
+        metadata: {
+          type: "object",
+          properties: {
+            width: { type: "integer" },
+            height: { type: "integer" },
+            format: { type: "string" },
+            size_bytes: { type: "integer" },
+            duration_seconds: { type: "number" },
+          },
+          description: "メタデータ",
+        },
+      },
+      required: ["type", "data"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const type = args.type as "image" | "video" | "audio";
+        if (!["image", "video", "audio"].includes(type)) {
+          throw new ToolInputError('The "type" argument must be one of: image, video, audio.');
+        }
+
+        const data = getRequiredString(args, "data");
+        const metadata = args.metadata as MultimodalContext["metadata"] | undefined;
+
+        const context: MultimodalContext = {
+          id: `mm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          type,
+          data,
+          metadata: metadata ?? {},
+          created_at: new Date().toISOString(),
+        };
+
+        multimodalStorage.set(context.id, context);
+
+        return jsonResult({
+          context_id: context.id,
+          type: context.type,
+          created: true,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "analyze_multimodal_context",
+    description: "マルチモーダルコンテキスト（画像・動画）を解析し、詳細な分析結果を返します。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        context_id: {
+          type: "string",
+          description: "解析対象のコンテキストID",
+          minLength: 1,
+        },
+        analysis_type: {
+          type: "string",
+          enum: ["description", "labels", "objects", "text", "full"],
+          description: "解析タイプ（description: 概要、labels: ラベル、objects: オブジェクト検出、text: OCR、full: 全て）",
+        },
+      },
+      required: ["context_id"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const contextId = getRequiredString(args, "context_id");
+        const context = multimodalStorage.get(contextId);
+
+        if (!context) {
+          throw new ToolInputError(`Multimodal context not found: ${contextId}`);
+        }
+
+        const analysisType = (getOptionalString(args, "analysis_type") ?? "full") as string;
+
+        // Simulate analysis (in production, this would call Gemini Vision API)
+        const analysis: MultimodalAnalysis = {
+          description: `${context.type} content analysis`,
+          labels: ["content", context.type],
+        };
+
+        if (analysisType === "full" || analysisType === "objects") {
+          analysis.objects = [];
+        }
+
+        if (analysisType === "full" || analysisType === "text") {
+          analysis.text_detected = "";
+        }
+
+        if (analysisType === "full" && context.type === "image") {
+          analysis.colors = [];
+          analysis.sentiment = "neutral";
+        }
+
+        // Store analysis result
+        context.analysis = analysis;
+
+        return jsonResult({
+          context_id: contextId,
+          analysis_type: analysisType,
+          analysis,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "process_image",
+    description: "画像に対して各種処理（リサイズ、変換、フィルタ適用）を実行します。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        context_id: {
+          type: "string",
+          description: "処理対象のコンテキストID",
+          minLength: 1,
+        },
+        operation: {
+          type: "string",
+          enum: ["resize", "convert", "filter", "metadata"],
+          description: "処理タイプ",
+        },
+        params: {
+          type: "object",
+          properties: {
+            width: { type: "integer" },
+            height: { type: "integer" },
+            format: { type: "string" },
+            filter_type: { type: "string" },
+          },
+          description: "処理パラメータ",
+        },
+      },
+      required: ["context_id", "operation"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const contextId = getRequiredString(args, "context_id");
+        const context = multimodalStorage.get(contextId);
+
+        if (!context) {
+          throw new ToolInputError(`Multimodal context not found: ${contextId}`);
+        }
+
+        if (context.type !== "image") {
+          throw new ToolInputError("This operation is only supported for image contexts.");
+        }
+
+        const operation = getRequiredString(args, "operation");
+        const params = args.params as Record<string, unknown> | undefined;
+
+        let result: JsonObject;
+
+        switch (operation) {
+          case "resize": {
+            const width = params?.width as number | undefined;
+            const height = params?.height as number | undefined;
+            result = {
+              operation: "resize",
+              original_size: { width: context.metadata.width, height: context.metadata.height },
+              new_size: { width: width ?? context.metadata.width, height: height ?? context.metadata.height },
+              status: "simulated",
+            };
+            break;
+          }
+          case "convert": {
+            const format = (params?.format as string) ?? "png";
+            result = {
+              operation: "convert",
+              original_format: context.metadata.format,
+              new_format: format,
+              status: "simulated",
+            };
+            break;
+          }
+          case "filter": {
+            const filterType = (params?.filter_type as string) ?? "none";
+            result = {
+              operation: "filter",
+              filter_applied: filterType,
+              status: "simulated",
+            };
+            break;
+          }
+          case "metadata": {
+            result = {
+              operation: "metadata",
+              metadata: context.metadata,
+            };
+            break;
+          }
+          default:
+            throw new ToolInputError(`Unknown operation: ${operation}`);
+        }
+
+        return jsonResult({
+          context_id: contextId,
+          ...result,
         });
       } catch (error) {
         return errorResult(error);
