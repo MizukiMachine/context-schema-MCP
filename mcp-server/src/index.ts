@@ -87,6 +87,38 @@ interface MultimodalAnalysis {
 // In-memory multimodal storage
 const multimodalStorage = new Map<string, MultimodalContext>();
 
+// RAG types
+interface RAGContext {
+  id: string;
+  documents: RAGDocument[];
+  embeddings?: number[][];
+  metadata: {
+    total_chunks: number;
+    total_tokens: number;
+    embedding_model?: string;
+  };
+  created_at: string;
+}
+
+interface RAGDocument {
+  id: string;
+  content: string;
+  source?: string;
+  chunk_index?: number;
+  embedding?: number[];
+  metadata?: Record<string, unknown>;
+}
+
+interface RAGAnalysis {
+  relevance_scores: number[];
+  top_chunks: RAGDocument[];
+  suggested_context: string;
+  token_estimate: number;
+}
+
+// In-memory RAG storage
+const ragStorage = new Map<string, RAGContext>();
+
 type ToolDefinition = {
   name: string;
   description: string;
@@ -1312,6 +1344,223 @@ const tools: ToolDefinition[] = [
         return jsonResult({
           context_id: contextId,
           ...result,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  // RAG Tools (MCP-06)
+  {
+    name: "create_rag_context",
+    description: "RAG (Retrieval-Augmented Generation) コンテキストを作成します。ドキュメントを登録して後で検索可能にします。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        documents: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              content: { type: "string", minLength: 1 },
+              source: { type: "string" },
+              metadata: { type: "object" },
+            },
+            required: ["content"],
+          },
+          description: "登録するドキュメントのリスト",
+          minItems: 1,
+        },
+        embedding_model: {
+          type: "string",
+          description: "使用するエンベディングモデル",
+        },
+      },
+      required: ["documents"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const docsInput = args.documents as Array<{ content: string; source?: string; metadata?: Record<string, unknown> }>;
+        if (!Array.isArray(docsInput) || docsInput.length === 0) {
+          throw new ToolInputError("At least one document is required.");
+        }
+
+        const embeddingModel = getOptionalString(args, "embedding_model") ?? "text-embedding-3-small";
+        const now = new Date().toISOString();
+
+        const documents: RAGDocument[] = docsInput.map((doc, index) => ({
+          id: `doc_${Date.now()}_${index}`,
+          content: doc.content,
+          source: doc.source,
+          chunk_index: index,
+          metadata: doc.metadata,
+        }));
+
+        const totalTokens = documents.reduce((sum, doc) => sum + doc.content.length / 4, 0);
+
+        const ragContext: RAGContext = {
+          id: `rag_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          documents,
+          metadata: {
+            total_chunks: documents.length,
+            total_tokens: Math.round(totalTokens),
+            embedding_model: embeddingModel,
+          },
+          created_at: now,
+        };
+
+        ragStorage.set(ragContext.id, ragContext);
+
+        return jsonResult({
+          context_id: ragContext.id,
+          document_count: documents.length,
+          estimated_tokens: Math.round(totalTokens),
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "analyze_rag_context",
+    description: "RAGコンテキストを解析し、クエリに関連するドキュメントを検索・ランク付けします。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        context_id: {
+          type: "string",
+          description: "RAGコンテキストID",
+          minLength: 1,
+        },
+        query: {
+          type: "string",
+          description: "検索クエリ",
+          minLength: 1,
+        },
+        top_k: {
+          type: "integer",
+          description: "返す上位結果数",
+          minimum: 1,
+          maximum: 20,
+        },
+      },
+      required: ["context_id", "query"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const contextId = getRequiredString(args, "context_id");
+        const query = getRequiredString(args, "query");
+        const topK = getOptionalPositiveInteger(args, "top_k") ?? 5;
+
+        const ragContext = ragStorage.get(contextId);
+        if (!ragContext) {
+          throw new ToolInputError(`RAG context not found: ${contextId}`);
+        }
+
+        // Simple keyword-based relevance scoring (simulated)
+        const queryWords = query.toLowerCase().split(/\s+/);
+        const scoredDocs = ragContext.documents.map((doc) => {
+          const docLower = doc.content.toLowerCase();
+          let score = 0;
+          for (const word of queryWords) {
+            const matches = (docLower.match(new RegExp(word, "g")) ?? []).length;
+            score += matches;
+          }
+          return { doc, score: score / queryWords.length };
+        });
+
+        scoredDocs.sort((a, b) => b.score - a.score);
+        const topChunks = scoredDocs.slice(0, topK);
+
+        const suggestedContext = topChunks
+          .filter((item) => item.score > 0)
+          .map((item) => item.doc.content)
+          .join("\n\n---\n\n");
+
+        const analysis: RAGAnalysis = {
+          relevance_scores: topChunks.map((item) => Math.round(item.score * 100) / 100),
+          top_chunks: topChunks.map((item) => ({
+            id: item.doc.id,
+            content: item.doc.content.substring(0, 200) + (item.doc.content.length > 200 ? "..." : ""),
+            source: item.doc.source,
+          })),
+          suggested_context: suggestedContext.substring(0, 1000),
+          token_estimate: Math.round(suggestedContext.length / 4),
+        };
+
+        return jsonResult({
+          context_id: contextId,
+          query,
+          analysis,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "get_rag_recommendations",
+    description: "現在のコンテキストに基づいて、RAGからの推奨コンテンツを取得します。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        context_id: {
+          type: "string",
+          description: "RAGコンテキストID",
+          minLength: 1,
+        },
+        current_context: {
+          type: "string",
+          description: "現在の会話コンテキスト",
+        },
+        max_chunks: {
+          type: "integer",
+          description: "最大チャンク数",
+          minimum: 1,
+          maximum: 10,
+        },
+      },
+      required: ["context_id"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const contextId = getRequiredString(args, "context_id");
+        const currentContext = getOptionalString(args, "current_context") ?? "";
+        const maxChunks = getOptionalPositiveInteger(args, "max_chunks") ?? 3;
+
+        const ragContext = ragStorage.get(contextId);
+        if (!ragContext) {
+          throw new ToolInputError(`RAG context not found: ${contextId}`);
+        }
+
+        // Find relevant chunks based on current context
+        const contextWords = currentContext.toLowerCase().split(/\s+/);
+        const scoredDocs = ragContext.documents.map((doc) => {
+          const docLower = doc.content.toLowerCase();
+          let score = 0;
+          for (const word of contextWords) {
+            if (word.length > 2 && docLower.includes(word)) {
+              score += 1;
+            }
+          }
+          return { doc, score };
+        });
+
+        scoredDocs.sort((a, b) => b.score - a.score);
+        const recommendations = scoredDocs.slice(0, maxChunks);
+
+        return jsonResult({
+          context_id: contextId,
+          recommendations: recommendations.map((item) => ({
+            content: item.doc.content.substring(0, 300),
+            source: item.doc.source,
+            relevance: item.score > 0 ? "high" : "low",
+          })),
+          total_documents: ragContext.documents.length,
+          suggested_injection_point: "before_user_query",
         });
       } catch (error) {
         return errorResult(error);
