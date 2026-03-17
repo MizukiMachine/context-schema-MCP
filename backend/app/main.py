@@ -10,6 +10,7 @@ from app.api import api_router
 from app.config import get_settings
 from app.database import init_db
 from app.routers.auth import router as auth_router
+from app.routers.multimodal import router as multimodal_router
 
 
 @asynccontextmanager
@@ -36,6 +37,7 @@ def create_app() -> FastAPI:
         allow_headers=settings.cors_allow_headers,
     )
     app.include_router(auth_router)
+    app.include_router(multimodal_router, prefix="/api/v1")
     app.include_router(api_router)
     return app
 
