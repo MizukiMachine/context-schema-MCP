@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Header } from '../components/layout/Header';
 import { Sidebar } from '../components/layout/Sidebar';
+import { QualityScore } from '../components/dashboard/QualityScore';
 import { useDashboardStore } from '../store';
 
 export function Dashboard() {
@@ -42,16 +43,15 @@ export function Dashboard() {
             {/* Metrics Panel */}
             <div className="p-6 bg-white rounded-lg border border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Metrics</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Quality Score</span>
-                  <span className="font-semibold">{qualityScore}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Optimization</span>
-                  <span className={optimizationInProgress ? 'text-yellow-600' : 'text-green-600'}>
-                    {optimizationInProgress ? 'In Progress' : 'Idle'}
-                  </span>
+              <div className="flex flex-col items-center">
+                <QualityScore score={qualityScore || 92} />
+                <div className="mt-4 w-full space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Optimization</span>
+                    <span className={optimizationInProgress ? 'text-yellow-600' : 'text-green-600'}>
+                      {optimizationInProgress ? 'In Progress' : 'Idle'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
