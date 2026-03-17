@@ -1,5 +1,14 @@
 from app.schemas.auth import Token, TokenPayload, UserCreate, UserLogin
 from app.schemas.element import ElementCreate, ElementResponse, ElementUpdate
+from app.schemas.multimodal import (
+    AnalysisRequest,
+    AnalysisResponse,
+    AnalysisType,
+    MultimodalContextCreate,
+    MultimodalContextResponse,
+    MultimodalStatus,
+    MultimodalType,
+)
 from app.schemas.session import SessionCreate, SessionResponse, SessionUpdate
 from app.schemas.window import (
     OptimizationElementSnapshot,
@@ -12,9 +21,16 @@ from app.schemas.window import (
 )
 
 __all__ = [
+    "AnalysisRequest",
+    "AnalysisResponse",
+    "AnalysisType",
     "ElementCreate",
     "ElementResponse",
     "ElementUpdate",
+    "MultimodalContextCreate",
+    "MultimodalContextResponse",
+    "MultimodalStatus",
+    "MultimodalType",
     "OptimizationElementSnapshot",
     "SessionCreate",
     "SessionResponse",
