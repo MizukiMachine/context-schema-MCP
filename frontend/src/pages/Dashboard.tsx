@@ -101,6 +101,27 @@ export function Dashboard() {
 
   useEffect(() => () => clearDemoTimers(), []);
 
+  useEffect(() => {
+    if (!sidebarOpen) {
+      return undefined;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSidebarOpen(false);
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sidebarOpen]);
+
   const scheduleTimeout = (callback: () => void, delayMs: number) => {
     const timeoutId = window.setTimeout(callback, delayMs);
     timeoutIdsRef.current.push(timeoutId);
@@ -236,32 +257,38 @@ export function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <Header />
 
-      <div className="flex">
-        <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <div className="flex min-h-[calc(100vh-73px)]">
+        <Sidebar isOpen={sidebarOpen} onToggle={toggleSidebar} onClose={closeSidebar} />
 
-        <main className="flex-1 p-6">
+        <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
           <button
+            type="button"
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden mb-4 p-2 bg-white rounded-md border border-gray-200"
+            aria-expanded={sidebarOpen}
+            aria-controls="dashboard-sidebar"
+            className="mb-4 inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-gray-50 lg:hidden"
           >
-            ☰ Menu
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <span>Menu</span>
           </button>
 
-          <div className="mb-6 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+          <div className="mb-4 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:mb-6 sm:p-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-sm font-medium uppercase tracking-[0.24em] text-slate-500">
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-slate-500 sm:text-sm">
                 Demo Flow
               </p>
-              <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+              <h2 className="mt-1 text-xl font-semibold text-slate-900 sm:mt-2 sm:text-2xl">
                 60-second optimization walkthrough
               </h2>
-              <p className="mt-2 max-w-2xl text-sm text-slate-500">
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500 sm:mt-2">
                 Default demo prompt, timed milestones, and unified transitions are configured for
                 the UX-09 walkthrough.
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[20rem]">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                   Demo Length
@@ -281,9 +308,9 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.25fr_0.75fr]">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)] lg:gap-8">
             <motion.section
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+              className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm"
               {...createDemoFadeUp()}
             >
               <InputPanel
@@ -299,7 +326,7 @@ export function Dashboard() {
             </motion.section>
 
             <motion.section
-              className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+              className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm"
               {...createDemoFadeUp(0.06)}
             >
               <div className="flex h-full flex-col gap-6">
@@ -371,7 +398,7 @@ export function Dashboard() {
               {issuesVisible && (
                 <motion.section
                   key="issues"
-                  className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                  className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
                   {...createDemoFadeUp()}
                 >
                   <div className="flex flex-col gap-2 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
@@ -379,7 +406,7 @@ export function Dashboard() {
                       <p className="text-sm font-medium uppercase tracking-[0.24em] text-slate-500">
                         Analysis Issues
                       </p>
-                      <h3 className="mt-2 text-2xl font-semibold text-slate-900">
+                      <h3 className="mt-2 text-xl font-semibold text-slate-900 sm:text-2xl">
                         What needs optimization
                       </h3>
                     </div>
@@ -388,7 +415,7 @@ export function Dashboard() {
                     </span>
                   </div>
 
-                  <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                  <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {DEMO_ANALYSIS_ISSUES.map((issue, index) => (
                       <motion.div
                         key={issue.id}
@@ -409,7 +436,7 @@ export function Dashboard() {
               {optimizationStarted && (
                 <motion.section
                   key="progress"
-                  className="xl:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
+                  className="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
                   {...createDemoFadeUp()}
                 >
                   <div className="flex flex-col gap-2 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
@@ -417,7 +444,7 @@ export function Dashboard() {
                       <p className="text-sm font-medium uppercase tracking-[0.24em] text-slate-500">
                         Optimization Progress
                       </p>
-                      <h3 className="mt-2 text-2xl font-semibold text-slate-900">
+                      <h3 className="mt-2 text-xl font-semibold text-slate-900 sm:text-2xl">
                         Guided reduction sequence
                       </h3>
                     </div>
@@ -426,7 +453,7 @@ export function Dashboard() {
                     </span>
                   </div>
 
-                  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
                     <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.16em] text-slate-500">
                       <span>Progress</span>
                       <span>{optimizationProgress.toFixed(0)}%</span>
@@ -439,7 +466,7 @@ export function Dashboard() {
                       />
                     </div>
 
-                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
                       {DEMO_PROGRESS_MILESTONES.map((step, index) => {
                         const isReached = optimizationProgress >= step.threshold;
 
@@ -468,7 +495,7 @@ export function Dashboard() {
               {tokenReductionComplete && (
                 <motion.section
                   key="output"
-                  className="xl:col-span-2"
+                  className="sm:col-span-2"
                   {...createDemoFadeUp()}
                 >
                   <OutputPanel
@@ -484,7 +511,7 @@ export function Dashboard() {
 
             <AnimatePresence>
               {comparisonVisible && (
-                <motion.div key="comparison" className="xl:col-span-2" {...createDemoFadeUp()}>
+                <motion.div key="comparison" className="sm:col-span-2" {...createDemoFadeUp()}>
                   <ComparisonView
                     before={beforeWindow}
                     after={afterWindow}
@@ -502,7 +529,7 @@ export function Dashboard() {
 
             <AnimatePresence>
               {savingsHighlighted && (
-                <motion.div key="savings" className="xl:col-span-2" {...createDemoFadeUp()}>
+                <motion.div key="savings" className="sm:col-span-2" {...createDemoFadeUp()}>
                   <CostSavings
                     tokensSaved={tokensSaved}
                     requestsPerDay={DEMO_REQUESTS_PER_DAY}
