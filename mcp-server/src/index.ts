@@ -29,6 +29,36 @@ const CONTEXT_ROLES = ["system", "user", "assistant", "tool"] as const;
 type JsonObject = Record<string, unknown>;
 type ToolHandler = (args: JsonObject) => Promise<CallToolResult>;
 
+// Template types
+interface PromptTemplate {
+  id: string;
+  name: string;
+  description: string;
+  content: string;
+  variables: string[];
+  category: string;
+  tags: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+interface TemplateCategory {
+  id: string;
+  name: string;
+  description: string;
+  template_count: number;
+}
+
+// In-memory template storage
+const templateStorage = new Map<string, PromptTemplate>();
+const templateCategories: TemplateCategory[] = [
+  { id: "general", name: "General", description: "汎用テンプレート", template_count: 0 },
+  { id: "coding", name: "Coding", description: "コーディング関連", template_count: 0 },
+  { id: "writing", name: "Writing", description: "文書作成", template_count: 0 },
+  { id: "analysis", name: "Analysis", description: "分析・評価", template_count: 0 },
+  { id: "creative", name: "Creative", description: "クリエイティブ", template_count: 0 },
+];
+
 type ToolDefinition = {
   name: string;
   description: string;
@@ -173,6 +203,50 @@ function getRequiredRole(
   }
 
   return value as (typeof CONTEXT_ROLES)[number];
+}
+
+function getOptionalArray(args: JsonObject, key: string): unknown[] | undefined {
+  const value = args[key];
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!Array.isArray(value)) {
+    throw new ToolInputError(`The "${key}" argument must be an array.`);
+  }
+
+  return value;
+}
+
+function getOptionalStringArray(args: JsonObject, key: string): string[] | undefined {
+  const value = getOptionalArray(args, key);
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return value.filter((item): item is string => typeof item === "string");
+}
+
+function generateId(): string {
+  return `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+function extractVariables(content: string): string[] {
+  const regex = /\{\{(\w+)\}\}/g;
+  const variables: string[] = [];
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    if (!variables.includes(match[1])) {
+      variables.push(match[1]);
+    }
+  }
+  return variables;
+}
+
+function renderTemplateContent(template: string, variables: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    return variables[key] ?? `{{${key}}}`;
+  });
 }
 
 function buildApiUrl(path: string): URL {
@@ -625,6 +699,368 @@ const tools: ToolDefinition[] = [
         }
 
         return jsonResult({ stats: await buildGlobalStats() });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  // Template Tools (MCP-04)
+  {
+    name: "create_prompt_template",
+    description: "新しいプロンプトテンプレートを作成します。変数は {{variable_name}} 形式で記述してください。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: {
+          type: "string",
+          description: "テンプレート名",
+          minLength: 1,
+        },
+        description: {
+          type: "string",
+          description: "テンプレートの説明",
+        },
+        content: {
+          type: "string",
+          description: "テンプレートの内容。{{variable}} 形式で変数を定義",
+          minLength: 1,
+        },
+        category: {
+          type: "string",
+          description: "カテゴリID (general, coding, writing, analysis, creative)",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "タグ一覧",
+        },
+      },
+      required: ["name", "content"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const now = new Date().toISOString();
+        const content = getRequiredString(args, "content");
+        const variables = extractVariables(content);
+
+        const template: PromptTemplate = {
+          id: generateId(),
+          name: getRequiredString(args, "name"),
+          description: getOptionalString(args, "description") ?? "",
+          content,
+          variables,
+          category: getOptionalString(args, "category") ?? "general",
+          tags: getOptionalStringArray(args, "tags") ?? [],
+          created_at: now,
+          updated_at: now,
+        };
+
+        templateStorage.set(template.id, template);
+
+        return jsonResult({
+          template_id: template.id,
+          name: template.name,
+          variables: template.variables,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "generate_prompt_template",
+    description: "AIを使用してプロンプトテンプレートを生成します。目的と要件を説明してください。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        purpose: {
+          type: "string",
+          description: "テンプレートの目的（例: コードレビュー、要約、翻訳）",
+          minLength: 1,
+        },
+        requirements: {
+          type: "string",
+          description: "追加要件の説明",
+        },
+        category: {
+          type: "string",
+          description: "カテゴリID",
+        },
+      },
+      required: ["purpose"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const purpose = getRequiredString(args, "purpose");
+        const requirements = getOptionalString(args, "requirements");
+        const category = getOptionalString(args, "category") ?? "general";
+
+        // Generate template content based on purpose
+        let templateContent = "";
+        const variables: string[] = [];
+
+        if (purpose.toLowerCase().includes("review") || purpose.toLowerCase().includes("レビュー")) {
+          templateContent = `以下のコードをレビューしてください:\n\n\`\`\`{{language}}\n{{code}}\n\`\`\`\n\nレビュー観点: {{focus_areas}}`;
+          variables.push("language", "code", "focus_areas");
+        } else if (purpose.toLowerCase().includes("summar") || purpose.toLowerCase().includes("要約")) {
+          templateContent = `以下の文章を要約してください:\n\n{{text}}\n\n要約の長さ: {{length}}\n重点を置く観点: {{focus}}`;
+          variables.push("text", "length", "focus");
+        } else if (purpose.toLowerCase().includes("translat") || purpose.toLowerCase().includes("翻訳")) {
+          templateContent = `以下のテキストを{{target_language}}に翻訳してください:\n\n{{text}}\n\n翻訳スタイル: {{style}}`;
+          variables.push("target_language", "text", "style");
+        } else {
+          templateContent = `{{instruction}}\n\n入力:\n{{input}}\n\n出力形式: {{output_format}}`;
+          variables.push("instruction", "input", "output_format");
+        }
+
+        if (requirements) {
+          templateContent += `\n\n追加要件: ${requirements}`;
+        }
+
+        const now = new Date().toISOString();
+        const template: PromptTemplate = {
+          id: generateId(),
+          name: `${purpose} テンプレート`,
+          description: `${purpose}のためのテンプレート${requirements ? ` (${requirements})` : ""}`,
+          content: templateContent,
+          variables,
+          category,
+          tags: [purpose.toLowerCase().replace(/\s+/g, "-")],
+          created_at: now,
+          updated_at: now,
+        };
+
+        templateStorage.set(template.id, template);
+
+        return jsonResult({
+          template_id: template.id,
+          name: template.name,
+          content: templateContent,
+          variables,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "list_prompt_templates",
+    description: "プロンプトテンプレートの一覧を取得します。カテゴリやタグでフィルタリング可能です。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        category: {
+          type: "string",
+          description: "カテゴリでフィルタ",
+        },
+        tags: {
+          type: "array",
+          items: { type: "string" },
+          description: "タグでフィルタ（OR条件）",
+        },
+        limit: {
+          type: "integer",
+          description: "取得件数の上限",
+          minimum: 1,
+          maximum: 100,
+        },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const categoryFilter = getOptionalString(args, "category");
+        const tagFilters = getOptionalStringArray(args, "tags");
+        const limit = getOptionalPositiveInteger(args, "limit") ?? 50;
+
+        let templates = Array.from(templateStorage.values());
+
+        if (categoryFilter) {
+          templates = templates.filter((t) => t.category === categoryFilter);
+        }
+
+        if (tagFilters && tagFilters.length > 0) {
+          templates = templates.filter((t) =>
+            tagFilters.some((tag) => t.tags.includes(tag)),
+          );
+        }
+
+        templates = templates.slice(0, limit);
+
+        return jsonResult({
+          templates: templates.map((t) => ({
+            id: t.id,
+            name: t.name,
+            description: t.description,
+            category: t.category,
+            variables: t.variables,
+            tags: t.tags,
+          })),
+          total: templates.length,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "render_template",
+    description: "テンプレートに変数を埋め込んでレンダリングします。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        template_id: {
+          type: "string",
+          description: "テンプレートID",
+          minLength: 1,
+        },
+        variables: {
+          type: "object",
+          description: "埋め込む変数のキーと値",
+          additionalProperties: { type: "string" },
+        },
+      },
+      required: ["template_id"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const templateId = getRequiredString(args, "template_id");
+        const template = templateStorage.get(templateId);
+
+        if (!template) {
+          throw new ToolInputError(`Template not found: ${templateId}`);
+        }
+
+        const variables = args.variables as Record<string, string> | undefined;
+        const rendered = renderTemplateContent(
+          template.content,
+          variables ?? {},
+        );
+
+        const missingVariables = template.variables.filter(
+          (v) => !variables || !variables[v],
+        );
+
+        return jsonResult({
+          rendered,
+          template_name: template.name,
+          missing_variables: missingVariables.length > 0 ? missingVariables : undefined,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "get_template_recommendations",
+    description: "ユーザーの目的に基づいて最適なテンプレートを推奨します。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        context: {
+          type: "string",
+          description: "現在のコンテキストや目的の説明",
+          minLength: 1,
+        },
+        max_results: {
+          type: "integer",
+          description: "推奨数の上限",
+          minimum: 1,
+          maximum: 10,
+        },
+      },
+      required: ["context"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const context = getRequiredString(args, "context").toLowerCase();
+        const maxResults = getOptionalPositiveInteger(args, "max_results") ?? 5;
+
+        const allTemplates = Array.from(templateStorage.values());
+
+        // Score templates based on context match
+        const scoredTemplates = allTemplates.map((t) => {
+          let score = 0;
+          const searchText = `${t.name} ${t.description} ${t.tags.join(" ")}`.toLowerCase();
+
+          // Check keyword matches
+          const keywords = context.split(/\s+/);
+          for (const keyword of keywords) {
+            if (searchText.includes(keyword)) score += 1;
+            if (t.category.toLowerCase().includes(keyword)) score += 2;
+            if (t.tags.some((tag) => tag.includes(keyword))) score += 2;
+          }
+
+          return { template: t, score };
+        });
+
+        // Sort by score and return top results
+        const recommendations = scoredTemplates
+          .filter((item) => item.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, maxResults)
+          .map((item) => ({
+            id: item.template.id,
+            name: item.template.name,
+            description: item.template.description,
+            category: item.template.category,
+            relevance_score: item.score,
+          }));
+
+        return jsonResult({
+          recommendations,
+          context_analyzed: context,
+          total_templates_available: allTemplates.length,
+        });
+      } catch (error) {
+        return errorResult(error);
+      }
+    },
+  },
+  {
+    name: "browse_template_categories",
+    description: "テンプレートカテゴリ一覧を参照します。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        include_templates: {
+          type: "boolean",
+          description: "各カテゴリのテンプレート一覧も含める",
+        },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      try {
+        const includeTemplates = args.include_templates === true;
+
+        const categoriesWithCount = templateCategories.map((cat) => {
+          const templates = Array.from(templateStorage.values()).filter(
+            (t) => t.category === cat.id,
+          );
+
+          return {
+            ...cat,
+            template_count: templates.length,
+            templates: includeTemplates
+              ? templates.map((t) => ({
+                  id: t.id,
+                  name: t.name,
+                  description: t.description,
+                  variables: t.variables,
+                }))
+              : undefined,
+          };
+        });
+
+        return jsonResult({
+          categories: categoriesWithCount,
+          total_templates: templateStorage.size,
+        });
       } catch (error) {
         return errorResult(error);
       }
