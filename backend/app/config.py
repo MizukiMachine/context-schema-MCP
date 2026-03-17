@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     app_name: str = "context-schema-mcp-backend"
     database_url: str = Field(
         default_factory=lambda: (
-            f"sqlite+aiosqlite:///{Path(__file__).resolve().parents[2] / 'context_schema.db'}"
+            f"sqlite+aiosqlite:///{Path(__file__).resolve().parents[1] / 'context_schema.db'}"
         )
     )
     database_echo: bool = False
