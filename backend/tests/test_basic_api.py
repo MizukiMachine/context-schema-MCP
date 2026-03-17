@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.main import create_app
 from app.models.user import User
+from app.services.context_analyzer import AnalysisResult, get_context_analyzer
 
 
 async def _create_test_user(async_db_session: AsyncSession) -> User:
@@ -25,6 +26,7 @@ async def _create_test_user(async_db_session: AsyncSession) -> User:
 async def test_health_docs_and_crud_endpoints(async_db_session: AsyncSession) -> None:
     user = await _create_test_user(async_db_session)
     app = create_app()
+    captured_window_ids: list[str] = []
 
     async def override_db():
         yield async_db_session
@@ -32,8 +34,25 @@ async def test_health_docs_and_crud_endpoints(async_db_session: AsyncSession) ->
     async def override_current_user() -> User:
         return user
 
+    class FakeContextAnalyzer:
+        async def analyze(self, elements) -> AnalysisResult:
+            captured_window_ids.extend([element.window_id for element in elements])
+            return AnalysisResult(
+                quality_score=82.5,
+                topic_consistency=0.88,
+                logical_flow=0.79,
+                information_redundancy=0.18,
+                token_efficiency=0.81,
+                issues=["Context summary is missing."],
+                recommendations=["Add a short summary at the top of the window."],
+            )
+
+    def override_context_analyzer() -> FakeContextAnalyzer:
+        return FakeContextAnalyzer()
+
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = override_current_user
+    app.dependency_overrides[get_context_analyzer] = override_context_analyzer
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
@@ -99,6 +118,12 @@ async def test_health_docs_and_crud_endpoints(async_db_session: AsyncSession) ->
         list_elements_response = await client.get("/elements", params={"window_id": window_id})
         assert list_elements_response.status_code == 200
         assert len(list_elements_response.json()) == 1
+
+        analyze_window_response = await client.post(f"/api/v1/windows/{window_id}/analyze")
+        assert analyze_window_response.status_code == 200
+        assert analyze_window_response.json()["quality_score"] == 82.5
+        assert analyze_window_response.json()["issues"] == ["Context summary is missing."]
+        assert captured_window_ids == [window_id]
 
         update_session_response = await client.patch(
             f"/sessions/{session_id}",

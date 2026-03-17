@@ -12,3 +12,11 @@ router.include_router(health_router)
 router.include_router(sessions_router)
 router.include_router(windows_router)
 router.include_router(elements_router)
+
+versioned_router = APIRouter(prefix="/api/v1")
+versioned_router.include_router(health_router)
+versioned_router.include_router(sessions_router)
+versioned_router.include_router(windows_router)
+versioned_router.include_router(elements_router)
+
+router.include_router(versioned_router)

@@ -7,9 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.models.context_element import ContextElement
 from app.models.context_session import ContextSession
 from app.models.context_window import ContextWindow
 from app.models.user import User
+from app.services.context_analyzer import AnalysisResult, ContextAnalyzer, get_context_analyzer
 from app.schemas.window import WindowCreate, WindowResponse, WindowUpdate
 
 router = APIRouter(prefix="/windows", tags=["windows"])
@@ -130,3 +132,24 @@ async def delete_window(
     await db.delete(window)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{window_id}/analyze", response_model=AnalysisResult)
+async def analyze_window(
+    window_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    analyzer: Annotated[ContextAnalyzer, Depends(get_context_analyzer)],
+) -> AnalysisResult:
+    """Analyze the quality of a single owned window."""
+    window = await _get_owned_window(db, window_id, current_user.id)
+    if window is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Window not found")
+
+    result = await db.execute(
+        select(ContextElement)
+        .where(ContextElement.window_id == window_id)
+        .order_by(ContextElement.created_at.asc())
+    )
+    elements = list(result.scalars().all())
+    return await analyzer.analyze(elements)
