@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -144,19 +143,16 @@ class ContextAnalyzer:
             recommendations=recommendations,
         )
 
-        merged_issues = self._deduplicate_strings(issues + ai_feedback.get("issues", []))
-        merged_recommendations = self._deduplicate_strings(
-            recommendations + ai_feedback.get("recommendations", [])
-        )
-
         return AnalysisResult(
             quality_score=round(quality_score, 2),
             topic_consistency=round(topic_consistency, 3),
             logical_flow=round(logical_flow, 3),
             information_redundancy=round(information_redundancy, 3),
             token_efficiency=round(token_efficiency, 3),
-            issues=merged_issues,
-            recommendations=merged_recommendations,
+            issues=self._deduplicate_strings(issues + ai_feedback.get("issues", [])),
+            recommendations=self._deduplicate_strings(
+                recommendations + ai_feedback.get("recommendations", [])
+            ),
         )
 
     def _build_analysis_prompt(
@@ -213,7 +209,7 @@ Do not repeat the exact same sentence if a local suggestion already covers it.
             return 1.0
 
         adjacent_scores: list[float] = []
-        for current, following in zip(non_empty_sets, non_empty_sets[1:], strict=False):
+        for current, following in zip(non_empty_sets, non_empty_sets[1:]):
             adjacent_scores.append(self._jaccard_similarity(current, following))
 
         counter = Counter(word for keywords in non_empty_sets for word in keywords)
@@ -235,7 +231,7 @@ Do not repeat the exact same sentence if a local suggestion already covers it.
         start_score = 1.0 if elements[0].role.value in {"system", "user"} else 0.65
         transition_scores = [
             self._FLOW_SCORES.get((current.role.value, following.role.value), 0.35)
-            for current, following in zip(elements, elements[1:], strict=False)
+            for current, following in zip(elements, elements[1:])
         ]
         return self._clamp(start_score * 0.25 + (sum(transition_scores) / len(transition_scores)) * 0.75)
 
@@ -355,7 +351,7 @@ Do not repeat the exact same sentence if a local suggestion already covers it.
 
         prompt = self._build_analysis_prompt(elements, metrics, issues, recommendations)
         try:
-            response = await asyncio.to_thread(self.gemini.generate_json, prompt)
+            response = self.gemini.generate_json(prompt)
         except Exception:
             return {"issues": [], "recommendations": []}
 
