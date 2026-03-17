@@ -65,3 +65,10 @@ export type {
   SamplePromptKey,
   SamplePromptOption,
 } from './demo';
+
+export type {
+  Template,
+  TemplateCategory,
+  TemplatePreview,
+  TemplateFilter,
+} from './template';
