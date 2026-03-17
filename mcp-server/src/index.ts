@@ -123,7 +123,7 @@ function getOptionalNonNegativeInteger(
     return undefined;
   }
 
-  if (!Number.isInteger(value) || value < 0) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
     throw new ToolInputError(
       `The "${key}" argument must be a non-negative integer.`,
     );
@@ -161,7 +161,10 @@ function getOptionalNumber(args: JsonObject, key: string): number | undefined {
   return value;
 }
 
-function getRequiredRole(args: JsonObject, key: string): (typeof CONTEXT_ROLES)[number] {
+function getRequiredRole(
+  args: JsonObject,
+  key: string,
+): (typeof CONTEXT_ROLES)[number] {
   const value = getRequiredString(args, key);
   if (!CONTEXT_ROLES.includes(value as (typeof CONTEXT_ROLES)[number])) {
     throw new ToolInputError(
