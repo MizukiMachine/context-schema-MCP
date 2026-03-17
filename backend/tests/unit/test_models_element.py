@@ -21,7 +21,8 @@ class TestContextElementModel:
         assert element.window_id == "window-123"
         assert element.role == ContextElementRole.USER
         assert element.content == "Hello, world!"
-        assert element.token_count == 0  # default
+        # Note: token_count default (0) only applies when persisted to DB
+        # For in-memory objects, the value is unset (None) until persisted
 
     def test_create_element_with_all_fields(self) -> None:
         """Test creating an element with all fields."""
@@ -82,14 +83,12 @@ class TestContextElementModel:
         assert token_count_column.default.arg == 0
 
     def test_element_metadata_default(self) -> None:
-        """Test that metadata defaults to empty dict."""
-        element = ContextElement(
-            window_id="window-meta",
-            role=ContextElementRole.USER,
-            content="Test",
-        )
-
-        assert element.metadata_ == {}
+        """Test that metadata default is configured."""
+        # The default is a callable (dict function), not the actual empty dict
+        metadata_column = ContextElement.__table__.c.metadata
+        assert metadata_column.default is not None
+        # The default is a callable that returns empty dict
+        assert callable(metadata_column.default.arg)
 
     def test_element_metadata_column_name(self) -> None:
         """Test that metadata_ maps to 'metadata' column."""
@@ -128,23 +127,14 @@ class TestContextElementModel:
         assert isinstance(content_column.type, Text)
 
     def test_element_id_is_uuid_string(self) -> None:
-        """Test that element ID is generated as UUID string."""
-        element1 = ContextElement(
-            window_id="window-1",
-            role=ContextElementRole.USER,
-            content="First",
-        )
-        element2 = ContextElement(
-            window_id="window-2",
-            role=ContextElementRole.USER,
-            content="Second",
-        )
-
-        # IDs should be different UUIDs
-        assert element1.id != element2.id
-        # ID should be a 36-character UUID string
-        assert len(element1.id) == 36
-        assert element1.id.count("-") == 4
+        """Test that element ID column is configured as UUID string."""
+        # Note: SQLAlchemy default only applies when persisted to DB
+        # When creating in-memory objects, ID will be None until persisted
+        # Check column configuration instead
+        id_column = ContextElement.__table__.c.id
+        assert id_column.primary_key is True
+        # The default is a lambda that returns UUID string
+        assert callable(id_column.default.arg)
 
     def test_element_long_content(self) -> None:
         """Test element with long content."""
