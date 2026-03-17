@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.models.context_element import ContextElementRole
+from app.services.context_optimizer import OptimizationType
 
 
 class WindowCreate(BaseModel):
@@ -40,3 +44,38 @@ class WindowResponse(BaseModel):
     token_limit: int
     created_at: datetime
     updated_at: datetime
+
+
+class WindowOptimizeRequest(BaseModel):
+    """Payload for applying a specific optimization strategy."""
+
+    optimization_type: OptimizationType
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class WindowAutoOptimizeRequest(BaseModel):
+    """Payload for selecting the best optimization strategy automatically."""
+
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class OptimizationElementSnapshot(BaseModel):
+    """Serializable snapshot for before/after optimization comparisons."""
+
+    role: ContextElementRole
+    content: str
+    token_count: int = Field(ge=0)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WindowOptimizationResponse(BaseModel):
+    """Optimization result for a context window."""
+
+    strategy_used: OptimizationType
+    token_savings: int = Field(ge=0)
+    token_reduction_ratio: float = Field(ge=0.0)
+    quality_improvement: float
+    original_token_count: int = Field(ge=0)
+    optimized_token_count: int = Field(ge=0)
+    original_elements: list[OptimizationElementSnapshot]
+    optimized_elements: list[OptimizationElementSnapshot]
