@@ -40,57 +40,8 @@ export function useOptimizationWebSocket(taskId: string | null) {
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
 
-  const connect = useCallback(() => {
-    if (!taskId || wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    const ws = new WebSocket(`${WS_BASE_URL}/api/v1/ws/tasks/${taskId}`);
-
-    ws.onopen = () => {
-      console.log('WebSocket connected');
-      setState((prev) => ({ ...prev, isConnected: true, error: null }));
-      reconnectAttemptsRef.current = 0;
-
-      // Send subscribe message
-      ws.send(JSON.stringify({ type: 'subscribe' }));
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data: WebSocketMessage = JSON.parse(event.data);
-        handleMessage(data);
-      } catch (e) {
-        console.error('Failed to parse WebSocket message:', e);
-      }
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setState((prev) => ({
-        ...prev,
-        error: 'WebSocket connection error',
-      }));
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket disconnected');
-      setState((prev) => ({ ...prev, isConnected: false }));
-      wsRef.current = null;
-
-      // Attempt reconnection
-      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
-        reconnectTimeoutRef.current = setTimeout(() => {
-          reconnectAttemptsRef.current++;
-          console.log(`Reconnecting... (attempt ${reconnectAttemptsRef.current})`);
-          connect();
-        }, delay);
-      }
-    };
-
-    wsRef.current = ws;
-  }, [taskId]);
-
-  const handleMessage = (data: WebSocketMessage) => {
+  // Define handleMessage first as a stable callback
+  const handleMessage = useCallback((data: WebSocketMessage) => {
     switch (data.type) {
       case 'connected':
       case 'subscribed':
@@ -133,7 +84,65 @@ export function useOptimizationWebSocket(taskId: string | null) {
       default:
         console.log('Unknown message type:', data.type);
     }
-  };
+  }, []);
+
+  // Use a ref for connect to allow recursive calls without circular deps
+  const connectRef = useRef<() => void>(() => {});
+
+  const connect = useCallback(() => {
+    if (!taskId || wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    const ws = new WebSocket(`${WS_BASE_URL}/api/v1/ws/tasks/${taskId}`);
+
+    ws.onopen = () => {
+      console.log('WebSocket connected');
+      setState((prev) => ({ ...prev, isConnected: true, error: null }));
+      reconnectAttemptsRef.current = 0;
+
+      // Send subscribe message
+      ws.send(JSON.stringify({ type: 'subscribe' }));
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data: WebSocketMessage = JSON.parse(event.data);
+        handleMessage(data);
+      } catch (e) {
+        console.error('Failed to parse WebSocket message:', e);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setState((prev) => ({
+        ...prev,
+        error: 'WebSocket connection error',
+      }));
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket disconnected');
+      setState((prev) => ({ ...prev, isConnected: false }));
+      wsRef.current = null;
+
+      // Attempt reconnection using ref to avoid circular dependency
+      if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectAttemptsRef.current++;
+          console.log(`Reconnecting... (attempt ${reconnectAttemptsRef.current})`);
+          connectRef.current();
+        }, delay);
+      }
+    };
+
+    wsRef.current = ws;
+  }, [taskId, handleMessage]);
+
+  // Update ref when connect changes (must be in useEffect to avoid render-time ref update)
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
