@@ -3,7 +3,7 @@
  * Browse, search, and filter context templates.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   DEFAULT_TEMPLATES,
@@ -13,7 +13,7 @@ import { createDemoFadeUp } from '../../constants/demoFlow';
 import type { Template, TemplateCategory } from '../../types';
 
 interface TemplateLibraryProps {
-  onSelectTemplate?: (template: Template) => void;
+  onSelectTemplate?: (template: Template, variables?: Record<string, string>) => void;
   className?: string;
 }
 
@@ -23,10 +23,36 @@ interface FilterOption {
   count: number;
 }
 
+// Extract variables from template content (e.g., {{variable_name}})
+function extractVariables(content: string): string[] {
+  const regex = /\{\{(\w+)\}\}/g;
+  const variables: string[] = [];
+  let match;
+
+  while ((match = regex.exec(content)) !== null) {
+    if (!variables.includes(match[1])) {
+      variables.push(match[1]);
+    }
+  }
+
+  return variables;
+}
+
+// Render template with variable values
+function renderTemplate(content: string, variables: Record<string, string>): string {
+  let rendered = content;
+  for (const [key, value] of Object.entries(variables)) {
+    rendered = rendered.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value || `{{${key}}}`);
+  }
+  return rendered;
+}
+
 export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLibraryProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<TemplateCategory | 'all'>('all');
   const [showPreview, setShowPreview] = useState<Template | null>(null);
+  const [variableValues, setVariableValues] = useState<Record<string, string>>({});
+  const [showRendered, setShowRendered] = useState(false);
 
   const filteredTemplates = useMemo(() => {
     let result = DEFAULT_TEMPLATES;
@@ -55,10 +81,22 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
     []
   );
 
-  const handleUseTemplate = (template: Template) => {
-    onSelectTemplate?.(template);
+  const handleUseTemplate = useCallback((template: Template) => {
+    onSelectTemplate?.(template, variableValues);
     setShowPreview(null);
-  };
+    setVariableValues({});
+    setShowRendered(false);
+  }, [onSelectTemplate, variableValues]);
+
+  const handleVariableChange = useCallback((key: string, value: string) => {
+    setVariableValues((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  const handleClosePreview = useCallback(() => {
+    setShowPreview(null);
+    setVariableValues({});
+    setShowRendered(false);
+  }, []);
 
   const filterOptions: FilterOption[] = useMemo(() => [
     { id: 'all', label: 'All Templates', count: DEFAULT_TEMPLATES.length },
@@ -68,6 +106,18 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
       count: DEFAULT_TEMPLATES.filter((t) => t.category === id).length,
     })),
   ], []);
+
+  // Get variables for current preview template
+  const previewVariables = useMemo(() => {
+    if (!showPreview) return [];
+    return extractVariables(showPreview.content);
+  }, [showPreview]);
+
+  // Rendered content preview
+  const renderedContent = useMemo(() => {
+    if (!showPreview) return '';
+    return renderTemplate(showPreview.content, variableValues);
+  }, [showPreview, variableValues]);
 
   return (
     <div className={`template-library ${className}`}>
@@ -239,7 +289,7 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowPreview(null)}
+            onClick={handleClosePreview}
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
@@ -248,7 +298,8 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
               onClick={(e) => e.stopPropagation()}
               className="fixed inset-4 z-50 mx-auto flex items-center justify-center p-4"
             >
-              <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+                {/* Header */}
                 <div className="mb-4 flex items-start justify-between">
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">
@@ -259,7 +310,7 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
                     </p>
                   </div>
                   <button
-                    onClick={() => setShowPreview(null)}
+                    onClick={handleClosePreview}
                     className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -273,13 +324,63 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
                   </button>
                 </div>
 
+                {/* View Toggle */}
+                <div className="mb-4 flex rounded-lg bg-slate-100 p-1">
+                  <button
+                    onClick={() => setShowRendered(false)}
+                    className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                      !showRendered
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Template
+                  </button>
+                  <button
+                    onClick={() => setShowRendered(true)}
+                    className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                      showRendered
+                        ? 'bg-white text-slate-900 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    Preview
+                  </button>
+                </div>
+
+                {/* Variable Forms */}
+                {previewVariables.length > 0 && (
+                  <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <h4 className="mb-3 text-sm font-semibold text-slate-700">
+                      Variables
+                    </h4>
+                    <div className="space-y-3">
+                      {previewVariables.map((varName) => (
+                        <div key={varName}>
+                          <label className="mb-1 block text-xs font-medium text-slate-600">
+                            {varName}
+                          </label>
+                          <input
+                            type="text"
+                            value={variableValues[varName] || ''}
+                            onChange={(e) => handleVariableChange(varName, e.target.value)}
+                            placeholder={`Enter ${varName}...`}
+                            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Content Preview */}
                 <div className="mb-4 rounded-lg bg-slate-50 p-4">
-                  <pre className="text-sm text-slate-700 whitespace-pre-wrap font-mono overflow-auto max-h-48">
-                    {showPreview.content.slice(0, 500)}
-                    {showPreview.content.length > 500 && '...'}
+                  <pre className="text-sm text-slate-700 whitespace-pre-wrap font-mono overflow-auto max-h-64">
+                    {showRendered ? renderedContent : showPreview.content}
                   </pre>
                 </div>
 
+                {/* Tags */}
                 <div className="flex flex-wrap gap-2">
                   {showPreview.tags.map((tag) => (
                     <span
@@ -291,9 +392,10 @@ export function TemplateLibrary({ onSelectTemplate, className = '' }: TemplateLi
                   ))}
                 </div>
 
+                {/* Actions */}
                 <div className="mt-6 flex justify-end gap-3">
                   <button
-                    onClick={() => setShowPreview(null)}
+                    onClick={handleClosePreview}
                     className="min-h-[44px] rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
                   >
                     Cancel
