@@ -1,14 +1,14 @@
-"""Multimodal context API schemas."""
+from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class MultimodalType(str, Enum):
-    """Type of multimodal content."""
+    """Supported multimodal content types."""
 
     IMAGE = "image"
     TEXT = "text"
@@ -17,7 +17,7 @@ class MultimodalType(str, Enum):
 
 
 class MultimodalStatus(str, Enum):
-    """Status of multimodal context processing."""
+    """Lifecycle status for multimodal contexts."""
 
     PENDING = "pending"
     PROCESSING = "processing"
@@ -25,58 +25,65 @@ class MultimodalStatus(str, Enum):
     FAILED = "failed"
 
 
-class MultimodalContextCreate(BaseModel):
-    """Request schema for creating multimodal context."""
+class AnalysisType(str, Enum):
+    """Allowed analysis modes."""
 
-    content_type: MultimodalType = Field(..., description="Type of multimodal content")
-    text_content: str | None = Field(None, description="Text content if type is text")
-    metadata: dict[str, Any] | None = Field(None, description="Additional metadata")
+    FULL = "full"
+    OCR = "ocr"
+    METADATA_ONLY = "metadata_only"
+
+
+class MultimodalContextCreate(BaseModel):
+    """Payload for creating a multimodal context."""
+
+    content_type: MultimodalType = Field(description="Type of content being created")
+    text_content: str | None = Field(
+        default=None,
+        description="Optional text body for text-based contexts",
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arbitrary metadata associated with the context",
+    )
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> "MultimodalContextCreate":
+        if self.content_type == MultimodalType.TEXT and not self.text_content:
+            raise ValueError("text_content is required when content_type is 'text'")
+        return self
 
 
 class MultimodalContextResponse(BaseModel):
-    """Response schema for multimodal context."""
+    """Serialized multimodal context."""
 
-    id: str = Field(..., description="Unique context identifier")
-    content_type: MultimodalType = Field(..., description="Type of multimodal content")
-    status: MultimodalStatus = Field(..., description="Processing status")
-    original_filename: str | None = Field(None, description="Original uploaded filename")
-    text_content: str | None = Field(None, description="Text content or extracted text")
-    analysis: str | None = Field(None, description="AI analysis of the content")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Content metadata")
-    tokens_estimate: int = Field(default=0, description="Estimated token count")
-    created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
+    id: str
+    content_type: MultimodalType
+    status: MultimodalStatus
+    original_filename: str | None = None
+    text_content: str | None = None
+    analysis: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    tokens_estimate: int = Field(default=0, ge=0)
+    created_at: datetime
+    updated_at: datetime
 
 
 class AnalysisRequest(BaseModel):
-    """Request schema for analysis."""
+    """Payload for executing context analysis."""
 
-    analysis_type: str = Field(
-        default="full",
-        description="Type of analysis: 'full', 'ocr', 'metadata_only'",
-    )
+    analysis_type: AnalysisType = Field(default=AnalysisType.FULL)
     custom_prompt: str | None = Field(
-        None,
-        description="Custom prompt for AI analysis",
+        default=None,
+        description="Optional prompt override for full image analysis",
     )
 
 
 class AnalysisResponse(BaseModel):
-    """Response schema for analysis results."""
+    """Result of a multimodal analysis request."""
 
-    context_id: str = Field(..., description="Context identifier")
-    analysis_type: str = Field(..., description="Type of analysis performed")
-    result: dict[str, Any] = Field(..., description="Analysis results")
-    tokens_estimate: int = Field(default=0, description="Estimated tokens used")
-    analyzed_at: datetime = Field(..., description="Analysis timestamp")
-
-
-class UploadResponse(BaseModel):
-    """Response schema for file upload."""
-
-    id: str = Field(..., description="Unique context identifier")
-    filename: str = Field(..., description="Original filename")
-    content_type: str = Field(..., description="Detected content type")
-    size_bytes: int = Field(..., description="File size in bytes")
-    status: MultimodalStatus = Field(..., description="Processing status")
-    message: str = Field(default="Upload successful", description="Status message")
+    context_id: str
+    analysis_type: AnalysisType
+    status: MultimodalStatus
+    result: dict[str, Any] = Field(default_factory=dict)
+    tokens_estimate: int = Field(default=0, ge=0)
+    analyzed_at: datetime

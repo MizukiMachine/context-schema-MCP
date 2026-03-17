@@ -6,7 +6,10 @@ from app.services.context_optimizer import (
     get_context_optimizer,
 )
 from app.services.gemini_service import GeminiService, get_gemini_service
-from app.services.multimodal_processor import MultimodalProcessor
+from app.services.multimodal_processor import (
+    MultimodalProcessor,
+    get_multimodal_processor,
+)
 
 __all__ = [
     "AnalysisResult",
@@ -19,4 +22,5 @@ __all__ = [
     "get_context_analyzer",
     "get_context_optimizer",
     "get_gemini_service",
+    "get_multimodal_processor",
 ]
