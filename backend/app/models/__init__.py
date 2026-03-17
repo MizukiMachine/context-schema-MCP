@@ -7,6 +7,7 @@ from app.models.prompt_template import (
     TemplateType,
     extract_variables,
 )
+from app.models.user import User
 
 __all__ = [
     "TimestampMixin",
@@ -15,5 +16,6 @@ __all__ = [
     "OptimizationTask",
     "PromptTemplate",
     "TemplateType",
+    "User",
     "extract_variables",
 ]

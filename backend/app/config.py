@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     )
     database_echo: bool = False
     jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
+    jwt_refresh_expiration_days: int = 7
 
 
 @lru_cache
