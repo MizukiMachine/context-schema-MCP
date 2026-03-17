@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { createDemoFadeUp, createDemoTransition } from '../../constants';
 
 interface QualityScoreProps {
   score: number; // 0-100
@@ -36,9 +37,7 @@ export function QualityScore({
   return (
     <motion.div
       className="flex flex-col items-center"
-      initial={{ scale: 0 }}
-      animate={{ scale: 1 }}
-      transition={{ type: 'spring', duration: 0.5 }}
+      {...createDemoFadeUp()}
     >
       <div className="relative" style={{ width: size, height: size }}>
         {/* Background circle */}
@@ -66,7 +65,7 @@ export function QualityScore({
             strokeLinecap="round"
             initial={{ strokeDashoffset: circumference }}
             animate={{ strokeDashoffset: offset }}
-            transition={{ duration: 0.8, ease: 'easeOut' }}
+            transition={createDemoTransition()}
             style={{
               strokeDasharray: circumference,
             }}
@@ -79,7 +78,7 @@ export function QualityScore({
             className={`text-3xl font-bold ${getColor(clampedScore)}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            transition={createDemoTransition(0.12)}
           >
             {clampedScore}
           </motion.span>
@@ -91,7 +90,7 @@ export function QualityScore({
           className="mt-2 text-sm text-gray-600"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
+          transition={createDemoTransition(0.18)}
         >
           Quality Score
         </motion.span>

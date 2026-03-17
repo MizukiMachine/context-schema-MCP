@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { createDemoFadeUp, createDemoTransition } from '../../constants';
 
 export interface CostSavingsProps {
   tokensSaved: number;
@@ -109,9 +110,7 @@ export function CostSavings({
   return (
     <motion.section
       className={containerClassName}
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, ease: 'easeOut' }}
+      {...createDemoFadeUp()}
     >
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
@@ -134,9 +133,7 @@ export function CostSavings({
           <motion.div
             key={card.label}
             className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.08 * index, duration: 0.24 }}
+            {...createDemoFadeUp(0.08 * index, 10)}
           >
             <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
               {card.label}
@@ -177,7 +174,7 @@ export function CostSavings({
                 className={`h-full rounded-full ${speedTone.meter}`}
                 initial={{ width: 0 }}
                 animate={{ width: `${speedProgress}%` }}
-                transition={{ delay: 0.18, duration: 0.45, ease: 'easeOut' }}
+                transition={createDemoTransition(0.18)}
               />
             </div>
           </div>
