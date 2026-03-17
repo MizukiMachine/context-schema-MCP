@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import type { ContextWindow } from '../../types';
+import { createDemoFadeUp, createDemoSlideIn } from '../../constants';
 
 export interface ComparisonMetrics {
   beforeQualityScore: number;
@@ -211,9 +212,7 @@ export function ComparisonView({ before, after, metrics }: ComparisonViewProps) 
   return (
     <motion.section
       className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: 'easeOut' }}
+      {...createDemoFadeUp()}
     >
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -228,13 +227,11 @@ export function ComparisonView({ before, after, metrics }: ComparisonViewProps) 
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {summaryCards.map((card, index) => (
-            <motion.div
-              key={card.label}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.08 * index, duration: 0.25 }}
-            >
+          <motion.div
+            key={card.label}
+            className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3"
+            {...createDemoFadeUp(0.08 * index, 12)}
+          >
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
                 {card.label}
               </p>
@@ -250,9 +247,7 @@ export function ComparisonView({ before, after, metrics }: ComparisonViewProps) 
           <motion.div
             key={metric.label}
             className="rounded-xl border border-slate-200 bg-slate-50 p-4"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 + index * 0.08, duration: 0.25 }}
+            {...createDemoFadeUp(0.1 + index * 0.08, 12)}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -305,9 +300,7 @@ export function ComparisonView({ before, after, metrics }: ComparisonViewProps) 
           <motion.div
             key={panel.key}
             className="overflow-hidden rounded-2xl border border-slate-200"
-            initial={{ opacity: 0, x: index === 0 ? -18 : 18 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.15 + index * 0.08, duration: 0.3 }}
+            {...createDemoSlideIn(0.15 + index * 0.08, index === 0 ? -18 : 18)}
           >
             <div className="border-b border-slate-200 bg-slate-50 px-5 py-4">
               <div className="flex items-start justify-between gap-4">

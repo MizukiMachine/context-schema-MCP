@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { createDemoFadeUp } from '../../constants';
 
 interface OutputPanelProps {
   originalContent: string;
@@ -180,9 +181,7 @@ export function OutputPanel({
           <motion.div
             key={metric.label}
             className="rounded-lg border border-gray-200 bg-gray-50 p-3"
-            initial={{ opacity: 0.6, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
+            {...createDemoFadeUp()}
           >
             <div className="text-xs uppercase tracking-wide text-gray-500">{metric.label}</div>
             <div className="mt-1 text-xl font-semibold text-gray-900">{metric.value}</div>

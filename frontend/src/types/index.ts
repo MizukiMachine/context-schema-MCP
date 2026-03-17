@@ -57,3 +57,11 @@ export interface OptimizationTask {
   after_tokens: number | null;
   created_at: string;
 }
+
+export type {
+  DemoIssue,
+  DemoStepId,
+  DemoStepTiming,
+  SamplePromptKey,
+  SamplePromptOption,
+} from './demo';
