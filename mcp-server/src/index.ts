@@ -5,6 +5,7 @@ import {
   ListToolsRequestSchema,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
+import { optimizationTools } from "./tools/index.js";
 
 const SERVER_INFO = {
   name: "context-schema-mcp",
@@ -1567,6 +1568,7 @@ const tools: ToolDefinition[] = [
       }
     },
   },
+  ...optimizationTools,
 ];
 
 const toolRegistry = new Map(tools.map((tool) => [tool.name, tool]));
