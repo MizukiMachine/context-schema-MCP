@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+import os
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
+
+os.environ.setdefault("JWT_SECRET", "test-secret")
 
 import app.models  # noqa: F401
 from app.config import Settings

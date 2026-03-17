@@ -19,25 +19,39 @@ class Base(DeclarativeBase):
     pass
 
 
-settings = get_settings()
+engine: AsyncEngine | None = None
+session_factory: async_sessionmaker[AsyncSession] | None = None
 
-engine: AsyncEngine = create_async_engine(
-    settings.database_url,
-    echo=settings.database_echo,
-    future=True,
-)
 
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autoflush=False,
-)
+def get_engine() -> AsyncEngine:
+    """Create the async engine on first use."""
+    global engine
+    if engine is None:
+        settings = get_settings()
+        engine = create_async_engine(
+            settings.database_url,
+            echo=settings.database_echo,
+            future=True,
+        )
+    return engine
+
+
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    """Create the session factory on first use."""
+    global session_factory
+    if session_factory is None:
+        session_factory = async_sessionmaker(
+            bind=get_engine(),
+            class_=AsyncSession,
+            expire_on_commit=False,
+            autoflush=False,
+        )
+    return session_factory
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     """Dependency that provides a database session."""
-    async with AsyncSessionLocal() as session:
+    async with get_session_factory()() as session:
         yield session
 
 
@@ -45,5 +59,5 @@ async def init_db() -> None:
     """Initialize the database, creating all tables."""
     import app.models  # noqa: F401
 
-    async with engine.begin() as connection:
+    async with get_engine().begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
