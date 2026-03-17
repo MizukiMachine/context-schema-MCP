@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
     jwt_refresh_expiration_days: int = 7
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.0-flash-exp"
 
 
 @lru_cache
