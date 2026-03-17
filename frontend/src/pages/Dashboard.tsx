@@ -75,6 +75,9 @@ export function Dashboard() {
   const timeoutIdsRef = useRef<number[]>([]);
   const progressIntervalRef = useRef<number | null>(null);
 
+  const toggleSidebar = () => setSidebarOpen((prev) => !prev);
+  const closeSidebar = () => setSidebarOpen(false);
+
   const clearDemoTimers = () => {
     timeoutIdsRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
     timeoutIdsRef.current = [];

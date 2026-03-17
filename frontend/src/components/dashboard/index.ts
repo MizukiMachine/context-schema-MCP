@@ -5,6 +5,7 @@ export { InputPanel } from './InputPanel';
 export { OutputPanel } from './OutputPanel';
 export { ComparisonView } from './ComparisonView';
 export { SessionHistory } from './SessionHistory';
+export { TemplateLibrary } from './TemplateLibrary';
 export type { ComparisonMetrics } from './ComparisonView';
 export type { CostSavingsProps } from './CostSavings';
 export type { SessionHistoryItem } from './SessionHistory';
