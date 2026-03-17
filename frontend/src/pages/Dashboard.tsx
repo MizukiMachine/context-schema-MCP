@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Header } from '../components/layout/Header';
 import { Sidebar } from '../components/layout/Sidebar';
 import { QualityScore } from '../components/dashboard/QualityScore';
+import { InputPanel } from '../components/dashboard/InputPanel';
 import { useDashboardStore } from '../store';
 
 export function Dashboard() {
@@ -35,9 +36,8 @@ export function Dashboard() {
           {/* Dashboard Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Input Panel */}
-            <div className="p-6 bg-white rounded-lg border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Input Panel</h3>
-              <p className="text-gray-500">Context input will be displayed here</p>
+            <div className="p-6 bg-white rounded-lg border border-gray-200 min-h-[300px]">
+              <InputPanel />
             </div>
 
             {/* Metrics Panel */}
